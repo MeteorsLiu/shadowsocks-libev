@@ -184,30 +184,22 @@ stat_update_cb(EV_P_ ev_timer *watcher, int revents)
         LOGI("update traffic stat: tx: %" PRIu64 " rx: %" PRIu64 "", tx, rx);
     }
     
-    if (context){
-        reply = redisCommand(context, "EXISTS %s", username);
-        if (reply->integer > 0) { 
+    if (context){    
+        if (rx > 0 || tx > 0) {
+            reply = redisCommand(context, "GET %s", username);
+            temp = (uint64_t)strtol(reply->str, &ptr, 10);
+            temp += rx;
+            temp += tx;
             freeReplyObject(reply);
-            
-            if (rx > 0 || tx > 0) {
-                reply = redisCommand(context, "GET %s", username);
-                temp = (uint64_t)strtol(reply->str, &ptr, 10);
-                temp += rx;
-                temp += tx;
-                freeReplyObject(reply);
-                redisCommand(context, "SET %s %llu", username, temp);
-            } else {
-                return;
-            }
-            
-            rx = 0;
-            tx = 0;
-                            
+            redisCommand(context, "SET %s %llu", username, temp);
         } else {
-            freeReplyObject(reply);
-            redisCommand(context, "SET %s %llu", username, rx+tx);
+            return;
         }
-    }       
+            
+        rx = 0;
+        tx = 0;
+                        
+    }
 
 }
 
@@ -2153,6 +2145,12 @@ main(int argc, char **argv)
         LOGI("enable TCP no-delay");
     }
     context = redisConnect("127.0.0.1", 6379);
+
+    reply = redisCommand(context, "EXISTS %s", username);
+    if (reply->integer == 0) {
+        redisCommand(context, "SET %s 0", username);
+    }
+    
 #ifndef __MINGW32__
     // ignore SIGPIPE
     signal(SIGPIPE, SIG_IGN);
