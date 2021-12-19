@@ -50,7 +50,7 @@
 #include <sys/ioctl.h>
 #define SET_INTERFACE
 #endif
-#include <hiredis.h>
+#include <hiredis/hiredis.h>
 #ifdef USE_NFTABLES
 #include <ctype.h>
 #include <linux/netfilter.h>
@@ -194,10 +194,12 @@ stat_update_cb(EV_P_ ev_timer *watcher, int revents)
             } else {
                 temp += tx;
             }
-            reply = redisCommand(context, "SET key:%s %llu", remote_port, temp);
+            reply = redisCommand(context, "SET %s %llu", remote_port, temp);
             freeReplyObject(reply);
         }
-    }          
+    }
+    rx = 0;
+    tx = 0;          
 
 }
 
