@@ -172,15 +172,15 @@ static struct cork_dllist connections;
 static void
 stat_update_cb(EV_P_ ev_timer *watcher, int revents)
 {
-    uint64_t temp = 0;
+    redisReply *reply;
 
     if (verbose) {
         LOGI("update traffic stat: tx: %" PRIu64 " rx: %" PRIu64 "", tx, rx);
     }
 
     if (context){
-        redisReply *reply = redisCommand(context, "GET %s", remote_port);
-        if (!reply) {
+        reply = redisCommand(context, "GET %s", remote_port);
+        if (reply == NULL) {
             if (rx > tx) {
                 reply = redisCommand(context, "SET %s %llu", remote_port, rx);
             } else {
@@ -188,10 +188,9 @@ stat_update_cb(EV_P_ ev_timer *watcher, int revents)
             }
             freeReplyObject(reply);
         } else {
-            temp = (uint64_t)reply->integer;
-            if (temp < tx) {
+            if (tx > (uint64_t)reply->integer) {
                 reply = redisCommand(context, "SET %s %llu", remote_port, tx);
-            } else if (temp < rx) {
+            } else if (rx > (uint64_t)reply->integer) {
                 reply = redisCommand(context, "SET %s %llu", remote_port, rx);
             }
             
