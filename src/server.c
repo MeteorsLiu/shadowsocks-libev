@@ -50,7 +50,7 @@
 #include <sys/ioctl.h>
 #define SET_INTERFACE
 #endif
-
+#include <hiredis.h>
 #ifdef USE_NFTABLES
 #include <ctype.h>
 #include <linux/netfilter.h>
@@ -142,7 +142,7 @@ static int nofile = 0;
 #endif
 static int remote_conn = 0;
 static int server_conn = 0;
-
+static redisContext *context = NULL;
 static char *plugin       = NULL;
 static char *remote_port  = NULL;
 static char *manager_addr = NULL;
@@ -168,84 +168,39 @@ static struct plugin_watcher_t {
 
 static struct cork_dllist connections;
 
-#ifndef __MINGW32__
+
 static void
 stat_update_cb(EV_P_ ev_timer *watcher, int revents)
 {
-    struct sockaddr_un svaddr, claddr;
-    int sfd = -1;
-    size_t msgLen;
-    char resp[SOCKET_BUF_SIZE];
+    uint64_t temp = 0;
 
     if (verbose) {
         LOGI("update traffic stat: tx: %" PRIu64 " rx: %" PRIu64 "", tx, rx);
     }
 
-    snprintf(resp, SOCKET_BUF_SIZE, "stat: {\"%s\":%" PRIu64 "}", remote_port, tx + rx);
-    msgLen = strlen(resp) + 1;
-
-    ss_addr_t ip_addr = { .host = NULL, .port = NULL };
-    parse_addr(manager_addr, &ip_addr);
-
-    if (ip_addr.host == NULL || ip_addr.port == NULL) {
-        sfd = socket(AF_UNIX, SOCK_DGRAM, 0);
-        if (sfd == -1) {
-            ERROR("stat_socket");
-            return;
+    if (context){
+        redisReply *reply = redisCommand(context, "GET %s", remote_port);
+        if (!reply) {
+            if (rx > tx) {
+                reply = redisCommand(context, "SET key:%s %llu", remote_port, rx);
+            } else {
+                reply = redisCommand(context, "SET key:%s %llu", remote_port, tx);
+            }
+            freeReplyObject(reply);
+        } else {
+            temp = (uint64_t)reply->integer;
+            if (rx > tx) {
+                temp += rx;
+            } else {
+                temp += tx;
+            }
+            reply = redisCommand(context, "SET key:%s %llu", remote_port, temp);
+            freeReplyObject(reply);
         }
+    }          
 
-        memset(&claddr, 0, sizeof(struct sockaddr_un));
-        claddr.sun_family = AF_UNIX;
-        snprintf(claddr.sun_path, sizeof(claddr.sun_path), "/tmp/shadowsocks.%s", remote_port);
-
-        unlink(claddr.sun_path);
-
-        if (bind(sfd, (struct sockaddr *)&claddr, sizeof(struct sockaddr_un)) == -1) {
-            ERROR("stat_bind");
-            close(sfd);
-            return;
-        }
-
-        memset(&svaddr, 0, sizeof(struct sockaddr_un));
-        svaddr.sun_family = AF_UNIX;
-        strncpy(svaddr.sun_path, manager_addr, sizeof(svaddr.sun_path) - 1);
-
-        if (sendto(sfd, resp, strlen(resp) + 1, 0, (struct sockaddr *)&svaddr,
-                   sizeof(struct sockaddr_un)) != msgLen) {
-            ERROR("stat_sendto");
-            close(sfd);
-            return;
-        }
-
-        unlink(claddr.sun_path);
-    } else {
-        struct sockaddr_storage storage;
-        memset(&storage, 0, sizeof(struct sockaddr_storage));
-        if (get_sockaddr(ip_addr.host, ip_addr.port, &storage, 0, ipv6first) == -1) {
-            ERROR("failed to parse the manager addr");
-            return;
-        }
-
-        sfd = socket(storage.ss_family, SOCK_DGRAM, 0);
-
-        if (sfd == -1) {
-            ERROR("stat_socket");
-            return;
-        }
-
-        size_t addr_len = get_sockaddr_len((struct sockaddr *)&storage);
-        if (sendto(sfd, resp, strlen(resp) + 1, 0, (struct sockaddr *)&storage,
-                   addr_len) != msgLen) {
-            ERROR("stat_sendto");
-            close(sfd);
-            return;
-        }
-    }
-
-    close(sfd);
 }
 
-#endif
 
 static void
 free_connections(struct ev_loop *loop)
@@ -2183,7 +2138,7 @@ main(int argc, char **argv)
     if (no_delay) {
         LOGI("enable TCP no-delay");
     }
-
+    context = redisConnect("127.0.0.1", 6379);
 #ifndef __MINGW32__
     // ignore SIGPIPE
     signal(SIGPIPE, SIG_IGN);
@@ -2350,12 +2305,9 @@ main(int argc, char **argv)
         }
     }
 
-#ifndef __MINGW32__
-    if (manager_addr != NULL) {
-        ev_timer_init(&stat_update_watcher, stat_update_cb, UPDATE_INTERVAL, UPDATE_INTERVAL);
-        ev_timer_start(EV_DEFAULT, &stat_update_watcher);
-    }
-#endif
+
+    ev_timer_init(&stat_update_watcher, stat_update_cb, UPDATE_INTERVAL, UPDATE_INTERVAL);
+    ev_timer_start(EV_DEFAULT, &stat_update_watcher);
 
 #ifndef __MINGW32__
     // setuid
@@ -2378,11 +2330,9 @@ main(int argc, char **argv)
         LOGI("closed gracefully");
     }
 
-#ifndef __MINGW32__
-    if (manager_addr != NULL) {
-        ev_timer_stop(EV_DEFAULT, &stat_update_watcher);
-    }
-#endif
+
+    ev_timer_stop(EV_DEFAULT, &stat_update_watcher);
+
 
     if (plugin != NULL) {
         stop_plugin();
@@ -2417,6 +2367,7 @@ main(int argc, char **argv)
 
     winsock_cleanup();
 #endif
+    redisFree(context);
 
     return ret_val;
 }
