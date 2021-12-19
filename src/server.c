@@ -40,6 +40,7 @@
 #include <errno.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <stdlib.h>
 #include <pthread.h>
 #include <sys/un.h>
 #endif
@@ -173,6 +174,7 @@ static void
 stat_update_cb(EV_P_ ev_timer *watcher, int revents)
 {
     redisReply *reply;
+    uint64_t temp = 0;
 
     if (verbose) {
         LOGI("update traffic stat: tx: %" PRIu64 " rx: %" PRIu64 "", tx, rx);
@@ -188,9 +190,11 @@ stat_update_cb(EV_P_ ev_timer *watcher, int revents)
             }
             freeReplyObject(reply);
         } else {
-            if (tx > (uint64_t)reply->integer) {
+            char *ptr;
+            temp = (uint64_t)strtoll(reply->str, &ptr, 10);
+            if (tx > temp) {
                 reply = redisCommand(context, "SET %s %llu", remote_port, tx);
-            } else if (rx > (uint64_t)reply->integer) {
+            } else if (rx > temp) {
                 reply = redisCommand(context, "SET %s %llu", remote_port, rx);
             }
             
