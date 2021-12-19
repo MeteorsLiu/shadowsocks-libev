@@ -2150,6 +2150,7 @@ main(int argc, char **argv)
     if (reply->integer == 0) {
         redisCommand(context, "SET %s 0", username);
     }
+   freeReplyObject(reply);
     
 #ifndef __MINGW32__
     // ignore SIGPIPE
