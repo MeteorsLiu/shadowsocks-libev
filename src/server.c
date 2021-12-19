@@ -189,7 +189,6 @@ stat_update_cb(EV_P_ ev_timer *watcher, int revents)
             freeReplyObject(reply);
         } else {
             temp = (uint64_t)reply->integer;
-           freeReplyObject(reply);
             if (temp < tx) {
                 reply = redisCommand(context, "SET %s %llu", remote_port, tx);
             } else if (temp < rx) {
