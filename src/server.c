@@ -82,7 +82,7 @@ enum datatypes {
 #endif
 
 #ifndef SSMAXCONN
-#define SSMAXCONN 1024
+#define SSMAXCONN 2048
 #endif
 
 #ifdef USE_NFCONNTRACK_TOS
