@@ -76,7 +76,7 @@ ss_server_LDADD = $(SS_COMMON_LIBS)
 ss_manager_LDADD = $(SS_COMMON_LIBS)
 ss_local_LDADD += -lcares
 ss_tunnel_LDADD += -lcares
-ss_server_LDADD += -lcares
+ss_server_LDADD += -lcares -lhiredis
 ss_manager_LDADD += -lcares
 
 ss_local_CFLAGS = $(AM_CFLAGS) -DMODULE_LOCAL
