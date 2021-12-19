@@ -147,6 +147,7 @@ static redisContext *context = NULL;
 static char *plugin       = NULL;
 static char *remote_port  = NULL;
 static char *manager_addr = NULL;
+static char *username     = NULL;
 uint64_t tx               = 0;
 uint64_t rx               = 0;
 
@@ -184,17 +185,17 @@ stat_update_cb(EV_P_ ev_timer *watcher, int revents)
     }
     
     if (context){
-        reply = redisCommand(context, "EXISTS %s", remote_port);
+        reply = redisCommand(context, "EXISTS %s", username);
         if (reply->integer > 0) { 
             freeReplyObject(reply);
             
             if (rx > 0 || tx > 0) {
-                reply = redisCommand(context, "GET %s", remote_port);
+                reply = redisCommand(context, "GET %s", username);
                 temp = (uint64_t)strtol(reply->str, &ptr, 10);
                 temp += rx;
                 temp += tx;
                 freeReplyObject(reply);
-                redisCommand(context, "SET %s %llu", remote_port, temp);
+                redisCommand(context, "SET %s %llu", username, temp);
             } else {
                 return;
             }
@@ -1794,6 +1795,7 @@ main(int argc, char **argv)
 #ifdef USE_NFTABLES
         { "nftables-sets",   required_argument, NULL, GETOPT_VAL_NFTABLES_SETS },
 #endif
+        { "username",        required_argument, NULL, GETOPT_VAL_USERNAME  },
 #endif
         { NULL,              0,                 NULL, 0                      }
     };
@@ -1850,6 +1852,9 @@ main(int argc, char **argv)
             break;
         case GETOPT_VAL_TCP_OUTGOING_RCVBUF:
             tcp_outgoing_rcvbuf = atoi(optarg);
+            break;
+        case GETOPT_VAL_USERNAME:
+            username = optarg;
             break;
 #ifdef USE_NFTABLES
         case GETOPT_VAL_NFTABLES_SETS:
