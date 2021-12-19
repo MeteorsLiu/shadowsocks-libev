@@ -40,7 +40,6 @@
 #include <errno.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <stdlib.h>
 #include <pthread.h>
 #include <sys/un.h>
 #endif
@@ -48,6 +47,7 @@
 
 #if defined(HAVE_SYS_IOCTL_H) && defined(HAVE_NET_IF_H) && defined(__linux__)
 #include <net/if.h>
+#include <stdlib.h>
 #include <sys/ioctl.h>
 #define SET_INTERFACE
 #endif
@@ -176,29 +176,35 @@ stat_update_cb(EV_P_ ev_timer *watcher, int revents)
     redisReply *reply;
     uint64_t temp = 0;
 
+    char *ptr;
+    
+
     if (verbose) {
         LOGI("update traffic stat: tx: %" PRIu64 " rx: %" PRIu64 "", tx, rx);
     }
-
+    
     if (context){
-        reply = redisCommand(context, "GET %s", remote_port);
-        if (reply == NULL) {
-            if (rx > tx) {
-                reply = redisCommand(context, "SET %s %llu", remote_port, rx);
-            } else {
-                reply = redisCommand(context, "SET %s %llu", remote_port, tx);
-            }
+        reply = redisCommand(context, "EXISTS %s", remote_port);
+        if (reply->integer > 0) { 
             freeReplyObject(reply);
-        } else {
-            char *ptr;
-            temp = (uint64_t)strtoll(reply->str, &ptr, 10);
-            if (tx > temp) {
-                reply = redisCommand(context, "SET %s %llu", remote_port, tx);
-            } else if (rx > temp) {
-                reply = redisCommand(context, "SET %s %llu", remote_port, rx);
+            
+            if (rx > 0 || tx > 0) {
+                reply = redisCommand(context, "GET %s", remote_port);
+                temp = (uint64_t)strtol(reply->str, &ptr, 10);
+                temp += rx;
+                temp += tx;
+                freeReplyObject(reply);
+                redisCommand(context, "SET %s %llu", remote_port, temp);
+            } else {
+                return;
             }
             
+            rx = 0;
+            tx = 0;
+                            
+        } else {
             freeReplyObject(reply);
+            redisCommand(context, "SET %s %llu", remote_port, rx+tx);
         }
     }       
 
