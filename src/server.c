@@ -2146,7 +2146,7 @@ main(int argc, char **argv)
     }
     context = redisConnect("127.0.0.1", 6379);
 
-    reply = redisCommand(context, "EXISTS %s", username);
+    redisReply *reply = redisCommand(context, "EXISTS %s", username);
     if (reply->integer == 0) {
         redisCommand(context, "SET %s 0", username);
     }
