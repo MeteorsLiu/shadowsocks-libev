@@ -182,9 +182,9 @@ stat_update_cb(EV_P_ ev_timer *watcher, int revents)
         redisReply *reply = redisCommand(context, "GET %s", remote_port);
         if (!reply) {
             if (rx > tx) {
-                reply = redisCommand(context, "SET key:%s %llu", remote_port, rx);
+                reply = redisCommand(context, "SET %s %llu", remote_port, rx);
             } else {
-                reply = redisCommand(context, "SET key:%s %llu", remote_port, tx);
+                reply = redisCommand(context, "SET %s %llu", remote_port, tx);
             }
             freeReplyObject(reply);
         } else {
