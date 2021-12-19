@@ -205,7 +205,7 @@ stat_update_cb(EV_P_ ev_timer *watcher, int revents)
                             
         } else {
             freeReplyObject(reply);
-            redisCommand(context, "SET %s %llu", remote_port, rx+tx);
+            redisCommand(context, "SET %s %llu", username, rx+tx);
         }
     }       
 
