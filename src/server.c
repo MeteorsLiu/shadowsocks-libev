@@ -176,7 +176,7 @@ stat_update_cb(EV_P_ ev_timer *watcher, int revents)
 {
     redisReply *reply;
     uint64_t temp = 0;
-
+    uint64_t timecounter = 0;
     char *ptr;
     
 
@@ -191,7 +191,14 @@ stat_update_cb(EV_P_ ev_timer *watcher, int revents)
             temp += rx;
             temp += tx;
             freeReplyObject(reply);
-            redisCommand(context, "SET %s %llu", username, temp);
+            freeReplyObject(redisCommand(context, "SET %s %llu", username, temp));
+            if (rx > 0) {
+                reply = redisCommand(context, "GET %s.time", username);
+                timecounter = (uint64_t)strtol(reply->str, &ptr, 10);
+                timecounter += UPDATE_INTERVAL;
+                freeReplyObject(reply);
+                freeReplyObject(redisCommand(context, "SET %s.time %llu", username, timecounter));
+            }
         } else {
             return;
         }
@@ -2148,7 +2155,12 @@ main(int argc, char **argv)
 
     redisReply *reply = redisCommand(context, "EXISTS %s", username);
     if (reply->integer == 0) {
-        redisCommand(context, "SET %s 0", username);
+        freeReplyObject(redisCommand(context, "SET %s 0", username));
+    }
+   freeReplyObject(reply);
+    redisReply *reply = redisCommand(context, "EXISTS %s.time", username);
+    if (reply->integer == 0) {
+        freeReplyObject(redisCommand(context, "SET %s.time 0", username));
     }
    freeReplyObject(reply);
     
