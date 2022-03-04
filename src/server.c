@@ -2153,12 +2153,14 @@ main(int argc, char **argv)
     }
     context = redisConnect("127.0.0.1", 6379);
 
-    redisReply *reply = redisCommand(context, "EXISTS %s", username);
+    redisReply *reply;
+    reply = redisCommand(context, "EXISTS %s", username);
     if (reply->integer == 0) {
         freeReplyObject(redisCommand(context, "SET %s 0", username));
     }
     freeReplyObject(reply);
-    redisReply *reply = redisCommand(context, "EXISTS %s.time", username);
+    reply = NULL;
+    reply = redisCommand(context, "EXISTS %s.time", username);
     if (reply->integer == 0) {
         freeReplyObject(redisCommand(context, "SET %s.time 0", username));
     }
